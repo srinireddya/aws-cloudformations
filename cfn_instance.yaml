@@ -101,19 +101,22 @@ Resources:
           #   sleep 5
           # done
           sleep 20
-          # Format /dev/xvdh if it does not contain a partition yet
-          if [ "$(file -b -s /dev/xvdh)" == "data" ]; then
-            mkfs -t ext4 /dev/xvdh
-          fi
-          mkdir -p /data
-          mount /dev/xvdh /data
-          # Persist the volume in /etc/fstab so it gets mounted again
-          echo '/dev/xvdh /data ext4 defaults,nofail 0 2' >> /etc/fstab
+          
           sudo su
           yum update -y
           yum install -y httpd.x86_64
           systemctl start httpd.service
           systemctl enable httpd.service
+          rm /var/www/html
+          # Format /dev/xvdh if it does not contain a partition yet
+          if [ "$(file -b -s /dev/xvdh)" == "data" ]; then
+            mkfs -t ext4 /dev/xvdh
+          fi
+          mkdir -p /var/www/html
+          mount /dev/xvdh /var/www/html
+          # Persist the volume in /etc/fstab so it gets mounted again
+          echo '/dev/xvdh /var/www/html ext4 defaults,nofail 0 2' >> /etc/fstab
+          
           echo "Hello World from $(hostname -f)" > /var/www/html/index.html
 
 
