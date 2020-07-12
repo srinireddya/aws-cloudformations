@@ -56,7 +56,7 @@ Resources:
 #            VolumeSize: 8
 #            VolumeType: gp2
 #            DeleteOnTermination: true
-      InstanceType: t2.medium
+      InstanceType: t2.micro
       ImageId: !Ref amiId
       KeyName: !Ref keyName
       Monitoring: true
@@ -109,6 +109,7 @@ Resources:
           mount /dev/xvdh /data
           # Persist the volume in /etc/fstab so it gets mounted again
           echo '/dev/xvdh /data ext4 defaults,nofail 0 2' >> /etc/fstab
+          sudo su
           yum update -y
           yum install -y httpd.x86_64
           systemctl start httpd.service
