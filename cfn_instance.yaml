@@ -107,7 +107,7 @@ Resources:
           yum install -y httpd.x86_64
           systemctl start httpd.service
           systemctl enable httpd.service
-          rm /var/www/html
+          rm -r /var/www/html
           # Format /dev/xvdh if it does not contain a partition yet
           if [ "$(file -b -s /dev/xvdh)" == "data" ]; then
             mkfs -t ext4 /dev/xvdh
