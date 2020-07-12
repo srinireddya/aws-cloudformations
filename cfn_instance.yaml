@@ -1,0 +1,123 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Parameters:
+  vpcId:
+    Type: String
+    Default: vpc-5d995e3a
+  subnetId:
+    Type: String
+    Default: subnet-f87f248e
+  amiId:
+    Type: String
+    Default: ami-001bbea4d7b747821
+  keyName:
+    Type: String
+    Default: my-key
+
+
+Resources:
+
+  AppVolume:
+    Type: AWS::EC2::Volume
+#    DeletionPolicy: Snapshot
+    Properties:
+      AvailabilityZone: us-east-1a
+      Size: 1
+      Tags:
+        -
+          Key: Name
+          Value: app-volume
+      VolumeType: gp2
+
+
+  WebSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Web server
+      GroupName: web
+      VpcId: !Ref vpcId
+      SecurityGroupIngress:
+        -
+          IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+
+  ## EC2 Instance with a custom security group
+  ## and a larger root instance device
+  ## and an externally created EBS volume attached
+  WebInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+#      BlockDeviceMappings:
+#        -
+#          DeviceName: "/dev/xvda"
+#          Ebs:
+#            VolumeSize: 8
+#            VolumeType: gp2
+#            DeleteOnTermination: true
+      InstanceType: t2.medium
+      ImageId: !Ref amiId
+      KeyName: !Ref keyName
+      Monitoring: true
+      SecurityGroupIds:
+        - !Ref WebSecurityGroup
+      SubnetId: !Ref subnetId
+#      RoleName: !Ref roleName
+      Tags:
+        -
+          Key: Name
+          Value: webserver
+        -
+          Key: component
+          Value: aws_samples
+
+      Volumes:
+        -
+          Device: "/dev/sdh"
+          VolumeId: !Ref   AppVolume
+      UserData:
+        "Fn::Base64": !Sub |
+          #!/bin/bash -xe
+          #
+          # See: http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ebs-using-volumes.html
+          #
+          # Make sure both volumes have been created AND attached to this instance !
+          #
+          # We do not need a loop counter in the "until" statements below because
+          # there is a 5 minute limit on the CreationPolicy for this EC2 instance already.
+          EC2_INSTANCE_ID=$(curl -s http://instance-data/latest/meta-data/instance-id)
+          ######################################################################
+          # Volume /dev/sdh (which will get created as /dev/xvdh on Amazon Linux)
+          # DATA_STATE="unknown"
+          # until [ "${!DATA_STATE}" == "attached" ]; do
+          #   DATA_STATE=$(aws ec2 describe-volumes \
+          #     --region ${AWS::Region} \
+          #     --filters \
+          #         Name=attachment.instance-id,Values=${!EC2_INSTANCE_ID} \
+          #         Name=attachment.device,Values=/dev/sdh \
+          #     --query Volumes[].Attachments[].State \
+          #    --output text)
+          #   sleep 5
+          # done
+          sleep 20
+          # Format /dev/xvdh if it does not contain a partition yet
+          if [ "$(file -b -s /dev/xvdh)" == "data" ]; then
+            mkfs -t ext4 /dev/xvdh
+          fi
+          mkdir -p /data
+          mount /dev/xvdh /data
+          # Persist the volume in /etc/fstab so it gets mounted again
+          echo '/dev/xvdh /data ext4 defaults,nofail 0 2' >> /etc/fstab
+          yum update -y
+          yum install -y httpd.x86_64
+          systemctl start httpd.service
+          systemctl enable httpd.service
+          echo "Hello World from $(hostname -f)" > /var/www/html/index.html
+
+
+  ElasticIp:
+    Type: AWS::EC2::EIP
+    Properties:
+      InstanceId: !Ref WebInstance
+      Domain: vpc
